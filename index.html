@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soul News | Portal Informativo</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <style>
+        :root {
+            --sn-bg: #0b080f;       /* Negro con sutil tinte violeta */
+            --sn-card: #14111a;     /* Gris oscuro / Violeta profundo para tarjetas */
+            --sn-dark: #050307;     /* Negro absoluto para el header */
+            --sn-accent: #a855f7;   /* Violeta Neón Eléctrico */
+            --sn-rojo: #ef4444;     /* Alertas / Último momento */
+            --sn-texto: #f3f4f6;    /* Blanco grisáceo para lectura suave */
+            --sn-gris: #9ca3af;     /* Gris para subtítulos y copetes */
+            --sn-borde: #262130;    /* Bordes oscuros integrados */
+        }
+
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--sn-bg);
+            color: var(--sn-texto);
+        }
+
+        /* Header Principal */
+        .news-header {
+            background: var(--sn-dark);
+            color: #fff;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 2px solid var(--sn-accent);
+            box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+        }
+        .brand-logo {
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            cursor: pointer;
+            color: #fff;
+        }
+        .brand-logo span {
+            color: var(--sn-accent);
+            text-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+        }
+
+        /* Barra de Navegación / Categorías */
+        .category-bar {
+            background: rgba(11, 8, 15, 0.9);
+            border-bottom: 1px solid var(--sn-borde);
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px;
+            overflow-x: auto;
+            position: sticky;
+            top: 78px;
+            z-index: 90;
+            backdrop-filter: blur(10px);
+        }
+        .cat-btn {
+            background: #1e1b24;
+            border: 1px solid var(--sn-borde);
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--sn-gris);
+            white-space: nowrap;
+        }
+        .cat-btn:hover, .cat-btn.active {
+            background: var(--sn-accent);
+            color: #000;
+            border-color: var(--sn-accent);
+            font-weight: 700;
+        }
+        .cat-btn.active[data-cat="Ultimo Momento"] {
+            background: var(--sn-rojo);
+            color: #fff;
+            border-color: var(--sn-rojo);
+        }
+
+        /* Layout Principal */
+        .container {
+            max-width: 1100px;
+            margin: 30px auto;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+
+        /* Consola de Administración (Oculta por defecto) */
+        .admin-box {
+            background: var(--sn-card);
+            border: 2px dashed var(--sn-accent);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(168, 85, 247, 0.1);
+            display: none;
+        }
+        .admin-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+        @media (min-width: 600px) {
+            .admin-grid { grid-template-columns: 1fr 1fr; }
+            .full-width { grid-column: span 2; }
+        }
+        
+        label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--sn-accent);
+            display: block;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--sn-borde);
+            border-radius: 8px;
+            background: #0d0a12;
+            color: var(--sn-texto);
+            box-sizing: border-box;
+            font-size: 0.95rem;
+            outline: none;
+        }
+        input:focus, textarea:focus, select:focus {
+            border-color: var(--sn-accent);
+            background: #14111a;
+        }
+
+        .btn-submit {
+            background: var(--sn-accent);
+            color: #000;
+            border: none;
+            padding: 14px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            text-transform: uppercase;
+            transition: opacity 0.2s;
+        }
+        .btn-submit:hover { opacity: 0.9; }
+
+        /* Feed de Noticias */
+        .news-feed {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 25px;
+        }
+        @media (min-width: 768px) {
+            .news-feed { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        /* Tarjeta de Noticia */
+        .news-card {
+            background: var(--sn-card);
+            border: 1px solid var(--sn-borde);
+            border-radius: 12px;
+            padding: 25px;
+            position: relative;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .news-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(168, 85, 247, 0.4);
+            box-shadow: 0 15px 30px rgba(168, 85, 247, 0.1);
+        }
+
+        /* Badge de Categorías */
+        .badge-cat {
+            display: inline-block;
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            background: rgba(168, 85, 247, 0.15);
+            color: #c084fc;
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            width: fit-content;
+        }
+        .badge-cat.cat-ultimo {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--sn-rojo);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .news-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin: 0 0 10px 0;
+            line-height: 1.3;
+            color: #fff;
+        }
+        .news-copete {
+            font-size: 1rem;
+            color: var(--sn-gris);
+            margin: 0 0 15px 0;
+            line-height: 1.4;
+        }
+        .news-body {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #d1d5db;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+        }
+
+        /* Contenedor de Etiquetas (Tags) */
+        .tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: auto;
+            padding-top: 15px;
+            border-top: 1px dashed var(--sn-borde);
+        }
+        .tag-item {
+            background: #1e1b24;
+            color: #c084fc;
+            font-size: 0.75rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            border: 1px solid rgba(168, 85, 247, 0.1);
+        }
+
+        /* Botón de Eliminación (Solo Admin) */
+        .btn-delete-news {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--sn-rojo);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-delete-news:hover {
+            background: var(--sn-rojo);
+            color: #fff;
+        }
+
+        /* Login */
+        .btn-login {
+            background: transparent;
+            border: 1px solid rgba(168, 85, 247, 0.4);
+            color: var(--sn-accent);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-login:hover { 
+            background: var(--sn-accent); 
+            color: #000;
+        }
+    </style>
+</head>
+<body onload="inicializarSoulNews()">
+
+    <header class="news-header">
+        <div class="brand-logo" onclick="filtrarCategoria('Todas')">Soul<span>News</span></div>
+        <div id="auth-status">
+            <button class="btn-login" onclick="abrirLoginMaster()">Staff Login</button>
+        </div>
+    </header>
+
+    <nav class="category-bar">
+        <button class="cat-btn active" data-cat="Todas" onclick="filtrarCategoria('Todas')">Todas</button>
+        <button class="cat-btn" data-cat="Ultimo Momento" onclick="filtrarCategoria('Ultimo Momento')">🚨 Último Momento</button>
+        <button class="cat-btn" data-cat="Anuncios" onclick="filtrarCategoria('Anuncios')">📢 Anuncios</button>
+        <button class="cat-btn" data-cat="Empresas" onclick="filtrarCategoria('Empresas')">💼 Empresas</button>
+        <button class="cat-btn" data-cat="Tecnologia" onclick="filtrarCategoria('Tecnologia')">⚡ Tecnología</button>
+        <button class="cat-btn" data-cat="Gobierno" onclick="filtrarCategoria('Gobierno')">🏛️ Gobierno</button>
+    </nav>
+
+    <div class="container">
+
+        <div id="panel-admin-news" class="admin-box">
+            <h3 style="margin-top:0; color:var(--sn-accent); border-bottom:1px solid var(--sn-borde); padding-bottom:10px;">✍️ REDACTAR NUEVA NOTICIA</h3>
+            <div class="admin-grid">
+                <div>
+                    <label>Título de la Noticia</label>
+                    <input type="text" id="news-title-input" placeholder="Ej: Histórica inversión tecnológica en la ciudad">
+                </div>
+                <div>
+                    <label>Categoría Sección</label>
+                    <select id="news-cat-select">
+                        <option value="Ultimo Momento">Último Momento</option>
+                        <option value="Anuncios">Anuncios</option>
+                        <option value="Empresas">Empresas</option>
+                        <option value="Tecnologia">Tecnología</option>
+                        <option value="Gobierno">Gobierno</option>
+                    </select>
+                </div>
+                <div class="full-width">
+                    <label>Copete / Subtítulo Corto</label>
+                    <input type="text" id="news-copete-input" placeholder="Resumen breve de una línea...">
+                </div>
+                <div class="full-width">
+                    <label>Cuerpo del Artículo</label>
+                    <textarea id="news-body-input" rows="5" placeholder="Escribí todo el desarrollo de la noticia aquí..."></textarea>
+                </div>
+                <div class="full-width">
+                    <label>Etiquetas / Tags (Separadas por comas)</label>
+                    <input type="text" id="news-tags-input" placeholder="Ej: innovacion, mercado, local, urgente">
+                </div>
+                <button class="btn-submit full-width" onclick="publicarNoticiaSoul()">🚀 PUBLICAR ARTÍCULO AL FEED</button>
+            </div>
+        </div>
+
+        <main id="soul-news-feed" class="news-feed">
+            </main>
+    </div>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyA58MXpItx1F9zNnJbyeS_4FT_onYx9wig", authDomain: "uqt-virtual.firebaseapp.com", projectId: "uqt-virtual", storageBucket: "uqt-virtual.appspot.com", messagingSenderId: "777641217730", appId: "1:777641217730:web:8c5b5f9b4c7d8e2a" };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        let esAdminLogueado = false;
+        const CUENTA_ADMIN = "admin@mercadogato.com";
+        let categoriaFiltroActual = "Todas";
+
+        function inicializarSoulNews() {
+            auth.onAuthStateChanged(user => {
+                const panel = document.getElementById('panel-admin-news');
+                const authStatus = document.getElementById('auth-status');
+                
+                if(user && user.email.toLowerCase() === CUENTA_ADMIN.toLowerCase()) {
+                    esAdminLogueado = true;
+                    panel.style.display = 'block';
+                    authStatus.innerHTML = `<span style="color:#ef4444; font-weight:700; font-size:0.85rem; margin-right:10px;">🔴 MODO EDITOR</span><button class="btn-login" onclick="auth.signOut()" style="background:#ef4444; color:#fff; border:none;">Salir</button>`;
+                } else {
+                    esAdminLogueado = false;
+                    panel.style.display = 'none';
+                    authStatus.innerHTML = `<button class="btn-login" onclick="abrirLoginMaster()">Staff Login</button>`;
+                }
+                renderizarFeedNoticias();
+            });
+
+            db.collection('soul_news').orderBy('fechaPublicacion', 'desc').onSnapshot(() => {
+                renderizarFeedNoticias();
+            });
+        }
+
+        function publicarNoticiaSoul() {
+            const titulo = document.getElementById('news-title-input').value.trim();
+            const categoria = document.getElementById('news-cat-select').value;
+            const copete = document.getElementById('news-copete-input').value.trim();
+            const cuerpo = document.getElementById('news-body-input').value.trim();
+            const tagsRaw = document.getElementById('news-tags-input').value;
+
+            if(!titulo || !cuerpo) return alert("Por favor completa el título y el cuerpo de la noticia.");
+
+            const listaTags = tagsRaw.split(',')
+                                     .map(t => t.trim().toLowerCase())
+                                     .filter(t => t.length > 0);
+
+            db.collection('soul_news').add({
+                titulo: titulo,
+                categoria: categoria,
+                copete: copete,
+                cuerpo: cuerpo,
+                tags: listaTags,
+                fechaPublicacion: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                document.getElementById('news-title-input').value = "";
+                document.getElementById('news-copete-input').value = "";
+                document.getElementById('news-body-input').value = "";
+                document.getElementById('news-tags-input').value = "";
+                alert("¡Artículo publicado con éxito en Soul News!");
+            }).catch(err => alert("Error al publicar: " + err.message));
+        }
+
+        function eliminarNoticiaSoul(idDocumento) {
+            if(confirm("¿Estás seguro de que querés eliminar permanentemente este artículo de Soul News?")) {
+                db.collection('soul_news').doc(idDocumento).delete().then(() => {
+                    alert("Artículo removido del servidor.");
+                }).catch(err => alert("Error al eliminar: " + err.message));
+            }
+        }
+
+        function renderizarFeedNoticias() {
+            db.collection('soul_news').orderBy('fechaPublicacion', 'desc').get().then(snap => {
+                const feed = document.getElementById('soul-news-feed');
+                feed.innerHTML = "";
+                let contador = 0;
+
+                snap.forEach(doc => {
+                    const n = doc.data();
+                    
+                    if(categoriaFiltroActual !== "Todas" && n.categoria !== categoriaFiltroActual) {
+                        return; 
+                    }
+
+                    contador++;
+                    const esUltimo = n.categoria === 'Ultimo Momento' ? 'cat-ultimo' : '';
+                    
+                    let tagsHtml = "";
+                    if(n.tags && n.tags.length > 0) {
+                        tagsHtml = `<div class="tags-container">`;
+                        n.tags.forEach(tag => {
+                            tagsHtml += `<span class="tag-item">#${tag}</span>`;
+                        });
+                        tagsHtml += `</div>`;
+                    }
+
+                    const botonBorradoAdmin = esAdminLogueado ? `<button class="btn-delete-news" onclick="eliminarNoticiaSoul('${doc.id}')">❌ Eliminar</button>` : '';
+
+                    feed.innerHTML += `
+                        <article class="news-card">
+                            <div>
+                                ${botonBorradoAdmin}
+                                <span class="badge-cat ${esUltimo}">${n.categoria}</span>
+                                <h2 class="news-title">${n.titulo}</h2>
+                                ${n.copete ? `<p class="news-copete">${n.copete}</p>` : ''}
+                                <div class="news-body">${n.cuerpo}</div>
+                            </div>
+                            ${tagsHtml}
+                        </article>
+                    `;
+                });
+
+                if(contador === 0) {
+                    feed.innerHTML = `<div style="grid-column: 1 / -1; text-align:center; color:var(--sn-gris); padding:40px;">No hay noticias publicadas en la categoría seleccionada.</div>`;
+                }
+            });
+        }
+
+        function filtrarCategoria(nombreCategoria) {
+            categoriaFiltroActual = nombreCategoria;
+            const botones = document.querySelectorAll('.cat-btn');
+            botones.forEach(b => {
+                if(b.getAttribute('data-cat') === nombreCategoria) {
+                    b.classList.add('active');
+                } else {
+                    b.classList.remove('active');
+                }
+            });
+            renderizarFeedNoticias();
+        }
+
+        function abrirLoginMaster() {
+            const email = prompt("Email del Staff Técnico:");
+            if(!email) return;
+            const pass = prompt("Contraseña de Seguridad:");
+            if(!pass) return;
+            auth.signInWithEmailAndPassword(email, pass).catch(e => alert("Acceso denegado: " + e.message));
+        }
+    </script>
+</body>
+</html>
