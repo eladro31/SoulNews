@@ -162,9 +162,6 @@
             grid-template-columns: 1fr;
             gap: 25px;
         }
-        @media (min-width: 768px) {
-            .news-feed { grid-template-columns: repeat(2, 1fr); }
-        }
 
         /* Tarjeta de Noticia */
         .news-card {
@@ -183,6 +180,43 @@
             transform: translateY(-3px);
             border-color: rgba(168, 85, 247, 0.4);
             box-shadow: 0 15px 30px rgba(168, 85, 247, 0.1);
+        }
+
+        /* Bloque Superior de Estructura: Texto Izquierda - Foto Derecha */
+        .news-main-content {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            justify-content: space-between;
+        }
+        .news-text-side {
+            flex: 1;
+        }
+        .news-image-side {
+            width: 160px;
+            height: 110px;
+            flex-shrink: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--sn-borde);
+            background: #0d0a12;
+        }
+        .news-image-side img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        @media (max-width: 550px) {
+            .news-main-content {
+                flex-direction: column-reverse;
+                align-items: stretch;
+            }
+            .news-image-side {
+                width: 100%;
+                height: 180px;
+                margin-bottom: 10px;
+            }
         }
 
         /* Badge de Categorías */
@@ -259,6 +293,7 @@
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
+            z-index: 10;
         }
         .btn-delete-news:hover {
             background: var(--sn-rojo);
@@ -325,6 +360,10 @@
                     <input type="text" id="news-copete-input" placeholder="Resumen breve de una línea...">
                 </div>
                 <div class="full-width">
+                    <label>Enlace de la Foto (URL)</label>
+                    <input type="text" id="news-foto-input" placeholder="https://ejemplo.com/imagen.jpg">
+                </div>
+                <div class="full-width">
                     <label>Cuerpo del Artículo</label>
                     <textarea id="news-body-input" rows="5" placeholder="Escribí todo el desarrollo de la noticia aquí..."></textarea>
                 </div>
@@ -337,7 +376,7 @@
         </div>
 
         <main id="soul-news-feed" class="news-feed">
-            </main>
+        </main>
     </div>
 
     <script>
@@ -376,6 +415,7 @@
             const titulo = document.getElementById('news-title-input').value.trim();
             const categoria = document.getElementById('news-cat-select').value;
             const copete = document.getElementById('news-copete-input').value.trim();
+            const fotoUrl = document.getElementById('news-foto-input').value.trim();
             const cuerpo = document.getElementById('news-body-input').value.trim();
             const tagsRaw = document.getElementById('news-tags-input').value;
 
@@ -389,12 +429,15 @@
                 titulo: titulo,
                 categoria: categoria,
                 copete: copete,
+                fotoUrl: fotoUrl,
                 cuerpo: cuerpo,
                 tags: listaTags,
                 fechaPublicacion: firebase.firestore.FieldValue.serverTimestamp()
             }).then(() => {
                 document.getElementById('news-title-input').value = "";
+                document.getElementById('news-cat-select').value = "Ultimo Momento";
                 document.getElementById('news-copete-input').value = "";
+                document.getElementById('news-foto-input').value = "";
                 document.getElementById('news-body-input').value = "";
                 document.getElementById('news-tags-input').value = "";
                 alert("¡Artículo publicado con éxito en Soul News!");
@@ -435,15 +478,25 @@
                     }
 
                     const botonBorradoAdmin = esAdminLogueado ? `<button class="btn-delete-news" onclick="eliminarNoticiaSoul('${doc.id}')">❌ Eliminar</button>` : '';
+                    
+                    // Renderizado condicional de la imagen a la derecha si existe enlace
+                    const bloqueFoto = n.fotoUrl ? `<div class="news-image-side"><img src="${n.fotoUrl}" alt="Soul News Pic" onerror="this.parentNode.style.display='none'"></div>` : '';
 
                     feed.innerHTML += `
                         <article class="news-card">
                             <div>
                                 ${botonBorradoAdmin}
                                 <span class="badge-cat ${esUltimo}">${n.categoria}</span>
-                                <h2 class="news-title">${n.titulo}</h2>
-                                ${n.copete ? `<p class="news-copete">${n.copete}</p>` : ''}
-                                <div class="news-body">${n.cuerpo}</div>
+                                
+                                <div class="news-main-content">
+                                    <div class="news-text-side">
+                                        <h2 class="news-title">${n.titulo}</h2>
+                                        ${n.copete ? `<p class="news-copete">${n.copete}</p>` : ''}
+                                    </div>
+                                    ${bloqueFoto}
+                                </div>
+                                
+                                <div class="news-body" style="margin-top:15px;">${n.cuerpo}</div>
                             </div>
                             ${tagsHtml}
                         </article>
